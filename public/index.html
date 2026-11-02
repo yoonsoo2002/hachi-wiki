@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>하치위키 · 하치와레와 함께 만드는 공부 지도</title>
+  <meta name="description" content="공부 노트를 카드로 띄우고, 폴더로 묶고, 선으로 이어 나만의 지식 지도를 만드는 개인용 지식 관리 서비스">
+  <link rel="icon" type="image/png" href="assets/hachiware.png">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img class="brand-img" src="assets/hachiware.png" alt="" width="28" height="34">
+      <span class="brand-name">하치위키</span>
+    </div>
+    <label class="search">
+      <span class="sr-only">노트 검색</span>
+      <input id="search" type="search" placeholder="노트 검색 (제목, 내용)" autocomplete="off">
+    </label>
+    <div class="actions">
+      <button id="btnNewNote" class="btn">새 노트</button>
+      <button id="btnNewFolder" class="btn">새 폴더</button>
+      <div class="seg" role="group" aria-label="새 연결 모양">
+        <button id="modeLine" class="seg-btn on" aria-pressed="true">선</button>
+        <button id="modeArrow" class="seg-btn" aria-pressed="false">화살표</button>
+      </div>
+      <details class="menu">
+        <summary class="btn">데이터</summary>
+        <div class="menu-pop">
+          <button id="btnExport" class="menu-item">내보내기 (JSON)</button>
+          <button id="btnImport" class="menu-item">가져오기</button>
+          <button id="btnReset" class="menu-item danger">예시로 되돌리기</button>
+          <input id="fileImport" type="file" accept="application/json,.json" hidden>
+        </div>
+      </details>
+    </div>
+    <nav class="tabs" aria-label="화면 전환">
+      <button id="tabEditor" class="tab">노트</button>
+      <button id="tabCanvas" class="tab on">캔버스</button>
+    </nav>
+  </header>
+
+  <main id="layout" class="layout" data-view="canvas">
+    <section class="editor" aria-label="노트 편집">
+      <div id="editorEmpty" class="editor-empty">
+        <p class="empty-title">카드를 눌러 노트를 열어 봐.</p>
+        <p class="empty-sub">새로 쓰려면 위의 <b>새 노트</b>를 누른다.</p>
+      </div>
+      <div id="editorBody" class="editor-body" hidden>
+        <input id="noteTitle" class="note-title" type="text" placeholder="제목" aria-label="노트 제목">
+        <div class="editor-tools">
+          <div class="seg" role="group" aria-label="보기 방식">
+            <button id="viewEdit" class="seg-btn on" aria-pressed="true">편집</button>
+            <button id="viewPreview" class="seg-btn" aria-pressed="false">미리보기</button>
+          </div>
+          <span id="saveState" class="save-state" aria-live="polite"></span>
+        </div>
+        <textarea id="noteBody" class="note-body" placeholder="마크다운으로 적는다. 예: # 제목, - 목록, **굵게**" aria-label="노트 본문"></textarea>
+        <div id="notePreview" class="note-preview md" hidden></div>
+        <div class="editor-actions">
+          <button id="btnSave" class="btn primary">저장</button>
+          <button id="btnDelete" class="btn ghost danger">삭제</button>
+        </div>
+        <div class="linked">
+          <h3 class="linked-head">연결된 노트</h3>
+          <p id="linkedFolder" class="linked-folder"></p>
+          <ul id="linkedList" class="linked-list"></ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="canvas-wrap" aria-label="노트 캔버스">
+      <div id="viewport" class="viewport">
+        <div id="world" class="world">
+          <div id="folderLayer"></div>
+          <!-- 노트 좌표가 음수가 되어도 선이 눌리도록 SVG를 넓게 깔고 5000만큼 옮겨 그린다. -->
+          <svg id="edgeLayer" class="edge-layer" width="20000" height="20000" aria-hidden="true">
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0 0L10 5L0 10z" fill="#9AA5B8"></path>
+              </marker>
+              <marker id="arrowOn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0 0L10 5L0 10z" fill="#4A7BD0"></path>
+              </marker>
+            </defs>
+            <g transform="translate(5000 5000)">
+              <g id="edgeGroup"></g>
+              <path id="tempEdge" class="temp-edge" d=""></path>
+            </g>
+          </svg>
+          <div id="labelLayer"></div>
+          <div id="cardLayer"></div>
+        </div>
+      </div>
+
+      <div class="zoom" role="group" aria-label="확대와 축소">
+        <button id="zoomOut" class="btn sm" aria-label="축소">−</button>
+        <span id="zoomText" class="zoom-text">100%</span>
+        <button id="zoomIn" class="btn sm" aria-label="확대">+</button>
+        <button id="zoomFit" class="btn sm">맞춤</button>
+      </div>
+
+      <div id="edgeTools" class="edge-tools" hidden>
+        <input id="edgeLabel" type="text" placeholder="연결 이름" maxlength="20" aria-label="연결 이름">
+        <button id="edgeKind" class="btn sm">화살표로</button>
+        <button id="edgeFlip" class="btn sm">방향 바꾸기</button>
+        <button id="edgeDelete" class="btn sm danger">삭제</button>
+      </div>
+
+      <div class="hachi">
+        <div id="bubble" class="bubble" role="status" aria-live="polite" hidden></div>
+        <button id="hachiBtn" class="hachi-btn" aria-label="하치와레에게 말 걸기">
+          <img class="hachi-img" src="assets/hachiware.png" alt="" width="64" height="77">
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span id="versionText">버전 정보를 불러오는 중…</span>
+    <span id="healthText" class="health"></span>
+    <span class="footer-note">노트는 이 브라우저에만 저장된다. 가끔 내보내기로 백업한다.</span>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

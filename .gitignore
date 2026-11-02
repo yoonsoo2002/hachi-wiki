@@ -1,0 +1,6 @@
+node_modules/
+.vercel/
+.env*
+.claude/
+# 빌드할 때 만들어지는 파일
+public/version.json
