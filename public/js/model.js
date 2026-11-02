@@ -42,9 +42,9 @@ export function deleteNote(state, id) {
 
 // ---------- 폴더 ----------
 
-export function addFolder(state, { id = newId('f'), name = '새 폴더', x = 0, y = 0, w = 480, h = 300, color } = {}) {
+export function addFolder(state, { id = newId('f'), name = '새 폴더', x = 0, y = 0, w = 480, h = 300, color, parentId = null } = {}) {
   const pick = color ?? FOLDER_COLORS[state.folders.length % FOLDER_COLORS.length];
-  const folder = { id, name, x, y, w, h, color: pick };
+  const folder = { id, name, x, y, w, h, color: pick, parentId };
   return { state: { ...state, folders: [...state.folders, folder] }, folder };
 }
 
@@ -52,21 +52,106 @@ export function updateFolder(state, id, patch) {
   return { ...state, folders: state.folders.map((f) => (f.id === id ? { ...f, ...patch, id } : f)) };
 }
 
-// 폴더를 옮기면 안의 노트도 같은 만큼 옮긴다.
+// 폴더 안의 폴더를 모두 찾는다 (자식, 손자, ...). 자기 자신은 넣지 않는다.
+export function descendantFolderIds(state, id) {
+  const result = new Set();
+  const queue = [id];
+  while (queue.length) {
+    const cur = queue.shift();
+    for (const f of state.folders) {
+      if (f.parentId === cur && !result.has(f.id) && f.id !== id) {
+        result.add(f.id);
+        queue.push(f.id);
+      }
+    }
+  }
+  return result;
+}
+
+// 폴더가 몇 겹 안에 들어 있는지 센다. 맨 바깥 폴더는 0이다.
+export function folderDepth(state, id) {
+  const byId = new Map(state.folders.map((f) => [f.id, f]));
+  let depth = 0;
+  let cur = byId.get(id);
+  const seen = new Set();
+  while (cur && cur.parentId && !seen.has(cur.id)) {
+    seen.add(cur.id);
+    cur = byId.get(cur.parentId);
+    if (cur) depth += 1;
+  }
+  return depth;
+}
+
+// 바깥 폴더부터 안쪽 폴더까지 이름 목록. 예: ['DevOps', '자동화']
+export function folderPath(state, id) {
+  const byId = new Map(state.folders.map((f) => [f.id, f]));
+  const path = [];
+  const seen = new Set();
+  let cur = byId.get(id);
+  while (cur && !seen.has(cur.id)) {
+    seen.add(cur.id);
+    path.unshift(cur.name);
+    cur = byId.get(cur.parentId);
+  }
+  return path;
+}
+
+// 폴더를 옮기면 안의 폴더와 노트도 모두 같은 만큼 옮긴다.
 export function moveFolder(state, id, dx, dy) {
+  const ids = descendantFolderIds(state, id);
+  ids.add(id);
   return {
     ...state,
-    folders: state.folders.map((f) => (f.id === id ? { ...f, x: f.x + dx, y: f.y + dy } : f)),
-    notes: state.notes.map((n) => (n.folderId === id ? { ...n, x: n.x + dx, y: n.y + dy } : n)),
+    folders: state.folders.map((f) => (ids.has(f.id) ? { ...f, x: f.x + dx, y: f.y + dy } : f)),
+    notes: state.notes.map((n) => (ids.has(n.folderId) ? { ...n, x: n.x + dx, y: n.y + dy } : n)),
   };
 }
 
-// 규칙 5: 폴더를 지우면 안의 노트는 폴더 밖으로 나온다. 노트는 지우지 않는다.
+// 규칙 7: 폴더를 다른 폴더 안에 넣는다. 자기 자신이나 자기 안의 폴더에는 넣지 않는다 (순환 금지).
+export function setFolderParent(state, id, parentId) {
+  if (parentId === id) return state;
+  if (parentId !== null) {
+    if (!state.folders.some((f) => f.id === parentId)) return state;
+    if (descendantFolderIds(state, id).has(parentId)) return state;
+  }
+  return updateFolder(state, id, { parentId });
+}
+
+// 폴더가 안의 노트와 폴더를 모두 감싸도록 넓힌다. 바깥 폴더들도 차례로 넓힌다. 줄이지는 않는다.
+export function growToFit(state, folderId, pad = 20, padTop = 44) {
+  let s = state;
+  let id = folderId;
+  const seen = new Set();
+  while (id && !seen.has(id)) {
+    seen.add(id);
+    const f = s.folders.find((x) => x.id === id);
+    if (!f) break;
+    const boxes = [
+      ...s.notes.filter((n) => n.folderId === id).map((n) => ({ x: n.x, y: n.y, w: CARD_W, h: CARD_H })),
+      ...s.folders.filter((c) => c.parentId === id),
+    ];
+    if (boxes.length) {
+      const x0 = Math.min(f.x, ...boxes.map((b) => b.x - pad));
+      const y0 = Math.min(f.y, ...boxes.map((b) => b.y - padTop));
+      const x1 = Math.max(f.x + f.w, ...boxes.map((b) => b.x + b.w + pad));
+      const y1 = Math.max(f.y + f.h, ...boxes.map((b) => b.y + b.h + pad));
+      s = updateFolder(s, id, { x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+    }
+    id = f.parentId;
+  }
+  return s;
+}
+
+// 규칙 5: 폴더를 지우면 안의 노트와 폴더는 한 단계 바깥으로 나온다. 노트는 지우지 않는다.
+// 폴더에 이어진 연결선은 함께 지운다.
 export function deleteFolder(state, id) {
+  const target = state.folders.find((f) => f.id === id);
+  const up = target ? target.parentId ?? null : null;
   return {
     ...state,
-    folders: state.folders.filter((f) => f.id !== id),
-    notes: state.notes.map((n) => (n.folderId === id ? { ...n, folderId: null } : n)),
+    folders: state.folders.filter((f) => f.id !== id).map((f) => (f.parentId === id ? { ...f, parentId: up } : f)),
+    notes: state.notes.map((n) => (n.folderId === id ? { ...n, folderId: up } : n)),
+    edges: state.edges.filter((e) => e.from !== id && e.to !== id),
   };
 }
 
@@ -76,13 +161,29 @@ export function setNoteFolder(state, noteId, folderId) {
   return { ...state, notes: state.notes.map((n) => (n.id === noteId ? { ...n, folderId } : n)) };
 }
 
-// 카드의 중심이 들어 있는 폴더를 찾는다. 여러 폴더가 겹치면 나중에 만든 폴더(위에 그려진 폴더)를 고른다.
-export function folderAtPoint(state, x, y) {
-  for (let i = state.folders.length - 1; i >= 0; i -= 1) {
-    const f = state.folders[i];
-    if (x >= f.x && x <= f.x + f.w && y >= f.y && y <= f.y + f.h) return f.id;
+// 점 (x, y)가 들어 있는 폴더 중 가장 안쪽 폴더를 찾는다. 깊이가 같으면 나중에 만든 폴더를 고른다.
+// exclude에 든 폴더는 고르지 않는다 (폴더를 끌 때 자기 자신과 자기 안의 폴더를 뺀다).
+export function folderAtPoint(state, x, y, exclude = new Set()) {
+  let best = null;
+  let bestDepth = -1;
+  for (const f of state.folders) {
+    if (exclude.has(f.id)) continue;
+    if (x < f.x || x > f.x + f.w || y < f.y || y > f.y + f.h) continue;
+    const depth = folderDepth(state, f.id);
+    if (depth >= bestDepth) {
+      best = f.id;
+      bestDepth = depth;
+    }
   }
-  return null;
+  return best;
+}
+
+// 그리는 순서: 바깥 폴더를 먼저, 안쪽 폴더를 나중에 그린다.
+export function foldersByDepth(state) {
+  return state.folders
+    .map((f, i) => ({ f, i, d: folderDepth(state, f.id) }))
+    .sort((a, b) => a.d - b.d || a.i - b.i)
+    .map((x) => x.f);
 }
 
 // ---------- 연결선 ----------
@@ -91,10 +192,15 @@ export function hasEdgeBetween(state, a, b) {
   return state.edges.some((e) => (e.from === a && e.to === b) || (e.from === b && e.to === a));
 }
 
-// 규칙 2와 3: 같은 두 노트 사이에는 연결선이 하나뿐이다. 자기 자신과는 잇지 않는다.
+// 연결선은 노트와 노트, 폴더와 폴더, 노트와 폴더를 모두 이을 수 있다.
+export function nodeIds(state) {
+  return new Set([...state.notes.map((n) => n.id), ...state.folders.map((f) => f.id)]);
+}
+
+// 규칙 2와 3: 같은 두 대상 사이에는 연결선이 하나뿐이다. 자기 자신과는 잇지 않는다.
 export function addEdge(state, { from, to, kind = 'line', label = '', id = newId('e') }) {
   if (from === to) return { state, edge: null, reason: 'self' };
-  const ids = new Set(state.notes.map((n) => n.id));
+  const ids = nodeIds(state);
   if (!ids.has(from) || !ids.has(to)) return { state, edge: null, reason: 'missing' };
   if (hasEdgeBetween(state, from, to)) return { state, edge: null, reason: 'duplicate' };
   const edge = { id, from, to, kind: EDGE_KINDS.includes(kind) ? kind : 'line', label };
@@ -114,18 +220,21 @@ export function reverseEdge(state, id) {
   return { ...state, edges: state.edges.map((e) => (e.id === id ? { ...e, from: e.to, to: e.from } : e)) };
 }
 
-// 노트 하나와 연결된 노트 목록. direction: out(이 노트 → 상대), in(상대 → 이 노트), both(선)
-export function linkedNotes(state, noteId) {
-  const byId = new Map(state.notes.map((n) => [n.id, n]));
+// 노트나 폴더 하나와 연결된 대상 목록.
+// type: note | folder, direction: out(이쪽 → 상대), in(상대 → 이쪽), both(선)
+export function linkedItems(state, id) {
+  const byId = new Map([
+    ...state.notes.map((n) => [n.id, { type: 'note', node: n }]),
+    ...state.folders.map((f) => [f.id, { type: 'folder', node: f }]),
+  ]);
   const result = [];
   for (const e of state.edges) {
-    if (e.from !== noteId && e.to !== noteId) continue;
-    const otherId = e.from === noteId ? e.to : e.from;
-    const other = byId.get(otherId);
+    if (e.from !== id && e.to !== id) continue;
+    const other = byId.get(e.from === id ? e.to : e.from);
     if (!other) continue;
     let direction = 'both';
-    if (e.kind === 'arrow') direction = e.from === noteId ? 'out' : 'in';
-    result.push({ edgeId: e.id, note: other, direction, label: e.label });
+    if (e.kind === 'arrow') direction = e.from === id ? 'out' : 'in';
+    result.push({ edgeId: e.id, ...other, direction, label: e.label });
   }
   return result;
 }
@@ -172,13 +281,25 @@ export function importData(text) {
   if (!data || data.app !== 'hachi-wiki') throw new Error('하치위키에서 내보낸 파일이 아니다.');
   const str = (v, d = '') => (typeof v === 'string' ? v : d);
   const num = (v, d = 0) => (Number.isFinite(v) ? v : d);
-  const folders = (Array.isArray(data.folders) ? data.folders : [])
-    .filter((f) => f && typeof f.id === 'string')
-    .map((f) => ({
-      id: f.id, name: str(f.name, '폴더'), x: num(f.x), y: num(f.y),
-      w: num(f.w, 480), h: num(f.h, 300), color: FOLDER_COLORS.includes(f.color) ? f.color : 'blue',
-    }));
-  const folderIds = new Set(folders.map((f) => f.id));
+  const rawFolders = (Array.isArray(data.folders) ? data.folders : []).filter((f) => f && typeof f.id === 'string');
+  const folderIds = new Set(rawFolders.map((f) => f.id));
+  let folders = rawFolders.map((f) => ({
+    id: f.id, name: str(f.name, '폴더'), x: num(f.x), y: num(f.y),
+    w: num(f.w, 480), h: num(f.h, 300), color: FOLDER_COLORS.includes(f.color) ? f.color : 'blue',
+    parentId: folderIds.has(f.parentId) && f.parentId !== f.id ? f.parentId : null,
+  }));
+  // 부모를 따라가다 자기 자신으로 돌아오는 폴더(순환)는 맨 바깥으로 꺼낸다.
+  const byId = new Map(folders.map((f) => [f.id, f]));
+  folders = folders.map((f) => {
+    const seen = new Set([f.id]);
+    let cur = byId.get(f.parentId);
+    while (cur) {
+      if (seen.has(cur.id)) return { ...f, parentId: null };
+      seen.add(cur.id);
+      cur = byId.get(cur.parentId);
+    }
+    return f;
+  });
   const notes = (Array.isArray(data.notes) ? data.notes : [])
     .filter((n) => n && typeof n.id === 'string')
     .map((n) => ({

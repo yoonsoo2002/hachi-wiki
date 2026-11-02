@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   emptyState, addNote, deleteNote, addFolder, deleteFolder, moveFolder, setNoteFolder, folderAtPoint,
-  addEdge, deleteEdge, reverseEdge, linkedNotes, searchNotes, rectEdgePoint, exportData, importData,
+  addEdge, deleteEdge, reverseEdge, linkedItems, searchNotes, rectEdgePoint, exportData, importData,
+  setFolderParent, descendantFolderIds, folderPath, foldersByDepth, growToFit,
 } from '../public/js/model.js';
 import { seedState } from '../public/js/seed.js';
 
@@ -114,14 +115,108 @@ test('겹친 폴더에서는 위에 그려진 폴더를 고른다', () => {
   assert.equal(folderAtPoint(s, 500, 500), null);
 });
 
-test('연결된 노트 목록은 화살표 방향을 알려준다', () => {
+test('연결된 목록은 화살표 방향을 알려준다', () => {
   let s = twoNotes();
   s = addNote(s, { id: 'c' }).state;
   s = addEdge(s, { from: 'a', to: 'b', kind: 'arrow' }).state;
   s = addEdge(s, { from: 'c', to: 'a', kind: 'line' }).state;
-  const list = linkedNotes(s, 'a');
-  assert.deepEqual(list.map((l) => [l.note.id, l.direction]), [['b', 'out'], ['c', 'both']]);
-  assert.deepEqual(linkedNotes(s, 'b').map((l) => l.direction), ['in']);
+  const list = linkedItems(s, 'a');
+  assert.deepEqual(list.map((l) => [l.node.id, l.direction]), [['b', 'out'], ['c', 'both']]);
+  assert.deepEqual(linkedItems(s, 'b').map((l) => l.direction), ['in']);
+});
+
+// ---------- 폴더 중첩과 폴더 연결 (v0.2.0) ----------
+
+function nested() {
+  // root ⊃ mid ⊃ leaf, 노트 a는 leaf 안, b는 root 안
+  let s = twoNotes();
+  s = addFolder(s, { id: 'root', x: 0, y: 0, w: 600, h: 600 }).state;
+  s = addFolder(s, { id: 'mid', x: 50, y: 50, w: 400, h: 400, parentId: 'root' }).state;
+  s = addFolder(s, { id: 'leaf', x: 100, y: 100, w: 200, h: 200, parentId: 'mid' }).state;
+  s = setNoteFolder(s, 'a', 'leaf');
+  s = setNoteFolder(s, 'b', 'root');
+  return s;
+}
+
+test('규칙 7: 폴더를 자기 자신이나 자기 안의 폴더에 넣지 않는다', () => {
+  const s = nested();
+  assert.equal(setFolderParent(s, 'root', 'root'), s);
+  assert.equal(setFolderParent(s, 'root', 'leaf'), s);
+  assert.equal(setFolderParent(s, 'mid', 'leaf'), s);
+  const moved = setFolderParent(s, 'leaf', 'root');
+  assert.equal(moved.folders.find((f) => f.id === 'leaf').parentId, 'root');
+});
+
+test('바깥 폴더를 옮기면 안의 폴더와 노트가 모두 따라온다', () => {
+  let s = nested();
+  s = moveFolder(s, 'root', 10, 5);
+  const pos = (id) => {
+    const x = s.folders.find((f) => f.id === id) || s.notes.find((n) => n.id === id);
+    return [x.x, x.y];
+  };
+  assert.deepEqual(pos('root'), [10, 5]);
+  assert.deepEqual(pos('mid'), [60, 55]);
+  assert.deepEqual(pos('leaf'), [110, 105]);
+  assert.deepEqual(pos('a'), [10, 5]);
+  assert.deepEqual(pos('b'), [10, 5]);
+});
+
+test('규칙 5: 폴더를 지우면 안의 폴더와 노트는 한 단계 바깥으로 나온다', () => {
+  let s = nested();
+  s = deleteFolder(s, 'mid');
+  assert.equal(s.folders.find((f) => f.id === 'leaf').parentId, 'root');
+  s = deleteFolder(s, 'leaf');
+  assert.equal(s.notes.find((n) => n.id === 'a').folderId, 'root');
+});
+
+test('가장 안쪽 폴더를 고르고, 끄는 폴더 자신은 고르지 않는다', () => {
+  const s = nested();
+  assert.equal(folderAtPoint(s, 150, 150), 'leaf');
+  assert.equal(folderAtPoint(s, 60, 60), 'mid');
+  const exclude = descendantFolderIds(s, 'mid');
+  exclude.add('mid');
+  assert.equal(folderAtPoint(s, 150, 150, exclude), 'root');
+});
+
+test('폴더 경로와 그리는 순서', () => {
+  const s = nested();
+  assert.deepEqual(folderPath(s, 'leaf'), ['새 폴더', '새 폴더', '새 폴더']);
+  assert.deepEqual(foldersByDepth(s).map((f) => f.id), ['root', 'mid', 'leaf']);
+});
+
+test('폴더끼리, 폴더와 노트를 연결할 수 있고 폴더를 지우면 그 연결선도 지운다', () => {
+  let s = nested();
+  s = addFolder(s, { id: 'other' }).state;
+  const r1 = addEdge(s, { from: 'root', to: 'other', kind: 'arrow' });
+  assert.ok(r1.edge);
+  const r2 = addEdge(r1.state, { from: 'a', to: 'other' });
+  assert.ok(r2.edge);
+  assert.deepEqual(linkedItems(r2.state, 'other').map((l) => l.type).sort(), ['folder', 'note']);
+  s = deleteFolder(r2.state, 'other');
+  assert.equal(s.edges.length, 0);
+});
+
+test('바깥 폴더는 안의 폴더와 노트를 감싸도록 넓어진다', () => {
+  let s = nested();
+  s = addFolder(s, { id: 'big', x: 500, y: 500, w: 400, h: 400 }).state;
+  s = setFolderParent(s, 'big', 'leaf');
+  s = growToFit(s, 'leaf');
+  const leaf = s.folders.find((f) => f.id === 'leaf');
+  const root = s.folders.find((f) => f.id === 'root');
+  assert.ok(leaf.x + leaf.w >= 900 && leaf.y + leaf.h >= 900);
+  assert.ok(root.x + root.w >= leaf.x + leaf.w && root.y + root.h >= leaf.y + leaf.h);
+});
+
+test('가져온 파일의 순환 폴더는 맨 바깥으로 꺼낸다', () => {
+  const text = JSON.stringify({
+    app: 'hachi-wiki', notes: [], edges: [],
+    folders: [
+      { id: 'x', name: 'X', x: 0, y: 0, w: 10, h: 10, color: 'blue', parentId: 'y' },
+      { id: 'y', name: 'Y', x: 0, y: 0, w: 10, h: 10, color: 'blue', parentId: 'x' },
+    ],
+  });
+  const s = importData(text);
+  assert.ok(s.folders.some((f) => f.parentId === null));
 });
 
 test('화살표 방향을 뒤집고 연결선을 지운다', () => {

@@ -152,15 +152,19 @@ button, input, textarea { font: inherit; color: inherit; }
 .edge-layer { position: absolute; left: -5000px; top: -5000px; pointer-events: none; }
 
 .folder {
-  position: absolute; border: 1.5px dashed var(--edge); border-radius: var(--r-folder);
+  position: absolute; border: 1.5px dashed var(--edge); border-radius: var(--r-folder); cursor: move;
   transition: border-color var(--ease), box-shadow var(--ease);
 }
+.folder.dragging { box-shadow: var(--shadow-lift); }
+.folder.connect-target { border-style: solid; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(74, 123, 208, 0.2); }
+.folder > .folder-handle { top: 22px; right: -8px; margin-top: 0; }
+.folder:hover > .folder-handle { opacity: 1; }
 .folder.blue { background: color-mix(in srgb, var(--f-blue) 70%, transparent); }
 .folder.pink { background: color-mix(in srgb, var(--f-pink) 70%, transparent); }
 .folder.yellow { background: color-mix(in srgb, var(--f-yellow) 75%, transparent); }
 .folder.mint { background: color-mix(in srgb, var(--f-mint) 75%, transparent); }
 .folder.drop { border-style: solid; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(74, 123, 208, 0.15); }
-.folder-head { display: flex; align-items: center; gap: 6px; padding: 10px 12px 0 14px; cursor: move; }
+.folder-head { display: flex; align-items: center; gap: 6px; padding: 10px 16px 0 14px; }
 .folder-name {
   flex: 1; min-width: 0; border: 0; background: transparent; font-weight: 700; font-size: 15px;
   padding: 2px 4px; border-radius: 6px; cursor: move; outline: none;

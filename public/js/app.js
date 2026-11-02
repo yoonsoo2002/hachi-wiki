@@ -2,7 +2,8 @@
 import {
   CARD_W, CARD_H, emptyState, addNote, updateNote, deleteNote, addFolder, updateFolder, moveFolder,
   deleteFolder, setNoteFolder, folderAtPoint, addEdge, updateEdge, deleteEdge, reverseEdge,
-  linkedNotes, searchNotes, rectEdgePoint, exportData, importData,
+  linkedItems, searchNotes, rectEdgePoint, exportData, importData,
+  setFolderParent, descendantFolderIds, folderPath, foldersByDepth, growToFit,
 } from './model.js';
 import { renderMarkdown, firstLine } from './markdown.js';
 import { hachiLine } from './hachi.js';
@@ -39,6 +40,13 @@ const getNote = (id) => state.notes.find((n) => n.id === id);
 const getFolder = (id) => state.folders.find((f) => f.id === id);
 const getEdge = (id) => state.edges.find((e) => e.id === id);
 const noteRect = (n) => ({ x: n.x, y: n.y, w: CARD_W, h: CARD_H });
+// 연결선의 끝은 노트 카드일 수도, 폴더일 수도 있다.
+const nodeRect = (id) => {
+  const n = getNote(id);
+  if (n) return noteRect(n);
+  const f = getFolder(id);
+  return f ? { x: f.x, y: f.y, w: f.w, h: f.h } : null;
+};
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 // ---------- 저장 ----------
@@ -137,11 +145,15 @@ function fitView() {
   applyView();
 }
 
-function centerOn(note) {
+function centerOnBox(b) {
   const r = el.viewport.getBoundingClientRect();
-  view.x = r.width / 2 - (note.x + CARD_W / 2) * view.z;
-  view.y = r.height / 2 - (note.y + CARD_H / 2) * view.z;
+  view.x = r.width / 2 - (b.x + b.w / 2) * view.z;
+  view.y = r.height / 2 - (b.y + b.h / 2) * view.z;
   applyView();
+}
+
+function centerOn(note) {
+  centerOnBox(noteRect(note));
 }
 
 function viewCenterWorld() {
@@ -159,14 +171,17 @@ function setBox(node, b) {
 }
 
 function renderFolders() {
-  el.folderLayer.replaceChildren(...state.folders.map((f) => {
+  // 바깥 폴더를 먼저 그려야 안쪽 폴더가 그 위에 보인다.
+  el.folderLayer.replaceChildren(...foldersByDepth(state).map((f) => {
     const d = document.createElement('div');
     d.className = `folder ${f.color}`;
     d.dataset.id = f.id;
     setBox(d, f);
-    d.innerHTML = '<div class="folder-head"><input class="folder-name" readonly aria-label="폴더 이름" title="눌러서 이름 바꾸기"><span class="folder-count"></span><button class="folder-del" type="button">삭제</button></div><div class="folder-resize" title="끌어서 크기 조절"></div>';
+    d.innerHTML = '<div class="folder-head"><input class="folder-name" readonly aria-label="폴더 이름" title="눌러서 이름 바꾸기"><span class="folder-count"></span><button class="folder-del" type="button">삭제</button></div><div class="handle folder-handle" title="끌어서 다른 폴더나 카드와 연결"></div><div class="folder-resize" title="끌어서 크기 조절"></div>';
     d.querySelector('.folder-name').value = f.name;
-    d.querySelector('.folder-count').textContent = `${state.notes.filter((n) => n.folderId === f.id).length}개`;
+    const notes = state.notes.filter((n) => n.folderId === f.id).length;
+    const subs = state.folders.filter((x) => x.parentId === f.id).length;
+    d.querySelector('.folder-count').textContent = subs ? `노트 ${notes} · 폴더 ${subs}` : `노트 ${notes}`;
     return d;
   }));
 }
@@ -195,11 +210,9 @@ function renderCards() {
 }
 
 function edgePoints(e) {
-  const a = getNote(e.from);
-  const b = getNote(e.to);
-  if (!a || !b) return null;
-  const ra = noteRect(a);
-  const rb = noteRect(b);
+  const ra = nodeRect(e.from);
+  const rb = nodeRect(e.to);
+  if (!ra || !rb) return null;
   const ca = { x: ra.x + ra.w / 2, y: ra.y + ra.h / 2 };
   const cb = { x: rb.x + rb.w / 2, y: rb.y + rb.h / 2 };
   return { p1: rectEdgePoint(ra, cb.x, cb.y), p2: rectEdgePoint(rb, ca.x, ca.y) };
@@ -287,9 +300,8 @@ function renderEditor() {
 }
 
 function renderLinked(note) {
-  const folder = getFolder(note.folderId);
-  el.linkedFolder.textContent = folder ? `폴더: ${folder.name}` : '폴더: 없음';
-  const items = linkedNotes(state, note.id);
+  el.linkedFolder.textContent = note.folderId ? `폴더: ${folderPath(state, note.folderId).join(' › ')}` : '폴더: 없음';
+  const items = linkedItems(state, note.id);
   if (!items.length) {
     const li = document.createElement('li');
     li.className = 'linked-none';
@@ -306,7 +318,7 @@ function renderLinked(note) {
     dir.textContent = { out: '→', in: '←', both: '—' }[it.direction];
     dir.title = { out: '이 노트에서 나가는 화살표', in: '이 노트로 들어오는 화살표', both: '선' }[it.direction];
     const t = document.createElement('span');
-    t.textContent = it.note.title || '제목 없음';
+    t.textContent = it.type === 'folder' ? `[폴더] ${it.node.name}` : it.node.title || '제목 없음';
     b.append(dir, t);
     if (it.label) {
       const l = document.createElement('span');
@@ -314,7 +326,10 @@ function renderLinked(note) {
       l.textContent = it.label;
       b.append(l);
     }
-    b.addEventListener('click', () => selectNote(it.note.id, { center: true }));
+    b.addEventListener('click', () => {
+      if (it.type === 'note') selectNote(it.node.id, { center: true });
+      else centerOnBox(it.node);
+    });
     li.append(b);
     return li;
   }));
@@ -420,11 +435,18 @@ function clearDropHighlight() {
   for (const f of el.folderLayer.querySelectorAll('.folder.drop')) f.classList.remove('drop');
 }
 function clearConnectTarget() {
-  for (const c of el.cardLayer.querySelectorAll('.card.connect-target')) c.classList.remove('connect-target');
+  for (const c of el.world.querySelectorAll('.connect-target')) c.classList.remove('connect-target');
 }
-function cardUnderPointer(ev) {
+// 연결할 대상: 카드가 위에 있으면 카드, 없으면 폴더
+function nodeUnderPointer(ev) {
   const hit = document.elementFromPoint(ev.clientX, ev.clientY);
-  return hit ? hit.closest('.card') : null;
+  return hit ? hit.closest('.card') || hit.closest('.folder') : null;
+}
+// 폴더를 끌 때는 자기 자신과 자기 안의 폴더에는 넣을 수 없다.
+function folderDropExclude(id) {
+  const ex = descendantFolderIds(state, id);
+  ex.add(id);
+  return ex;
 }
 
 el.viewport.addEventListener('pointerdown', (ev) => {
@@ -441,8 +463,8 @@ el.viewport.addEventListener('pointerdown', (ev) => {
   const edgeEl = t.closest('.edge-g') || t.closest('.edge-label');
   const base = { sx: ev.clientX, sy: ev.clientY, moved: false };
 
-  if (handle && card) {
-    drag = { ...base, type: 'connect', from: card.dataset.id };
+  if (handle && (card || folderEl)) {
+    drag = { ...base, type: 'connect', from: (card || folderEl).dataset.id };
   } else if (card) {
     const n = getNote(card.dataset.id);
     drag = { ...base, type: 'card', id: n.id, ox: n.x - p.x, oy: n.y - p.y, el: card };
@@ -452,8 +474,9 @@ el.viewport.addEventListener('pointerdown', (ev) => {
   } else if (folderEl && t.closest('.folder-resize')) {
     const f = getFolder(folderEl.dataset.id);
     drag = { ...base, type: 'resize', id: f.id, px: p.x, py: p.y, w: f.w, h: f.h };
-  } else if (folderEl && t.closest('.folder-head')) {
-    drag = { ...base, type: 'folder', id: folderEl.dataset.id, lx: p.x, ly: p.y, onName: !!nameInput };
+  } else if (folderEl) {
+    // 폴더의 빈 곳 어디를 끌어도 폴더가 움직인다.
+    drag = { ...base, type: 'folder', id: folderEl.dataset.id, lx: p.x, ly: p.y, onName: !!nameInput, el: folderEl };
   } else {
     drag = { ...base, type: 'pan', vx: view.x, vy: view.y };
     el.viewport.classList.add('panning');
@@ -482,11 +505,15 @@ el.viewport.addEventListener('pointermove', (ev) => {
     const fid = folderAtPoint(state, x + CARD_W / 2, y + CARD_H / 2);
     for (const f of el.folderLayer.children) f.classList.toggle('drop', f.dataset.id === fid);
   } else if (drag.type === 'folder') {
+    drag.el.classList.add('dragging');
     state = moveFolder(state, drag.id, p.x - drag.lx, p.y - drag.ly);
     drag.lx = p.x;
     drag.ly = p.y;
     renderPositions();
     positionEdgeTools();
+    const f = getFolder(drag.id);
+    const target = folderAtPoint(state, f.x + f.w / 2, f.y + f.h / 2, folderDropExclude(drag.id));
+    for (const node of el.folderLayer.children) node.classList.toggle('drop', node.dataset.id === target);
   } else if (drag.type === 'resize') {
     state = updateFolder(state, drag.id, {
       w: Math.round(Math.max(240, drag.w + p.x - drag.px)),
@@ -494,10 +521,10 @@ el.viewport.addEventListener('pointermove', (ev) => {
     });
     renderPositions();
   } else if (drag.type === 'connect') {
-    const from = getNote(drag.from);
-    el.tempEdge.setAttribute('d', `M${from.x + CARD_W / 2} ${from.y + CARD_H / 2}L${p.x} ${p.y}`);
+    const from = nodeRect(drag.from);
+    el.tempEdge.setAttribute('d', `M${from.x + from.w / 2} ${from.y + from.h / 2}L${p.x} ${p.y}`);
     clearConnectTarget();
-    const target = cardUnderPointer(ev);
+    const target = nodeUnderPointer(ev);
     if (target && target.dataset.id !== drag.from) target.classList.add('connect-target');
   }
 });
@@ -524,16 +551,31 @@ function endDrag(ev, cancelled) {
       next = setNoteFolder(state, d.id, fid);
       if (fid) say('folderIn', { name: getFolder(fid).name });
     }
+    if (fid) next = growToFit(next, fid);
     commit(next);
   } else if (d.type === 'folder') {
-    if (!d.moved && d.onName) startRename(d.id);
-    else if (d.moved) commit(state);
+    d.el.classList.remove('dragging');
+    if (!d.moved) {
+      if (d.onName) startRename(d.id);
+      return;
+    }
+    // 폴더의 중심이 다른 폴더 안에 놓이면 그 폴더의 하위 폴더가 된다.
+    const f = getFolder(d.id);
+    const parent = folderAtPoint(state, f.x + f.w / 2, f.y + f.h / 2, folderDropExclude(d.id));
+    let next = state;
+    if (parent !== f.parentId) {
+      next = setFolderParent(state, d.id, parent);
+      if (parent) say('folderNest', { name: getFolder(parent).name, child: f.name });
+      else say('folderOut', { name: f.name });
+    }
+    if (parent) next = growToFit(next, parent);
+    commit(next);
   } else if (d.type === 'resize') {
     commit(state);
   } else if (d.type === 'pan') {
     if (!d.moved && selectedEdgeId) selectEdge(null);
   } else if (d.type === 'connect' && !cancelled) {
-    const target = cardUnderPointer(ev);
+    const target = nodeUnderPointer(ev);
     const to = target && target.dataset.id;
     if (!to || to === d.from) return;
     const r = addEdge(state, { from: d.from, to, kind: edgeMode });
@@ -587,7 +629,7 @@ el.folderLayer.addEventListener('click', (ev) => {
   if (!del) return;
   const f = getFolder(del.closest('.folder').dataset.id);
   if (!f) return;
-  if (!confirm(`'${f.name}' 폴더를 지울까? 안의 노트는 지워지지 않고 폴더 밖으로 나온다.`)) return;
+  if (!confirm(`'${f.name}' 폴더를 지울까? 안의 노트와 폴더는 지워지지 않고 한 단계 바깥으로 나온다.`)) return;
   commit(deleteFolder(state, f.id));
 });
 
@@ -792,12 +834,17 @@ async function init() {
   render();
   applyView();
   // 캔버스 크기가 처음 정해지는 때에 한 번 전체를 맞춘다.
-  const ro = new ResizeObserver(([entry]) => {
-    if (entry.contentRect.width < 10) return;
-    ro.disconnect();
+  // 글꼴과 스타일을 늦게 받으면 크기가 나중에 정해지므로 페이지 로드가 끝난 뒤에도 한 번 더 맞춘다.
+  let fitted = false;
+  const fitOnce = () => {
+    if (fitted || el.viewport.getBoundingClientRect().width < 10) return;
+    fitted = true;
     fitView();
-  });
+  };
+  const ro = new ResizeObserver(() => fitOnce());
   ro.observe(el.viewport);
+  if (document.readyState === 'complete') requestAnimationFrame(fitOnce);
+  else window.addEventListener('load', () => { fitted = false; fitOnce(); }, { once: true });
   el.saveStateText.textContent = '';
   say(first ? 'welcome' : 'back');
   loadVersion();
