@@ -1,0 +1,905 @@
+{
+ "description": "검색 평가 질의 100개. split=tune(30, 개선 작업 중에만 사용) / test(70, 최종 비교에만 사용). relevant=사람이 정한 정답 노트.",
+ "queries": [
+  {
+   "id": "q001",
+   "q": "운영체제",
+   "type": "exact",
+   "relevant": [
+    "n01"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q002",
+   "q": "라운드 로빈",
+   "type": "exact",
+   "relevant": [
+    "n02"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q003",
+   "q": "은행원 알고리즘",
+   "type": "exact",
+   "relevant": [
+    "n03"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q004",
+   "q": "페이지 폴트",
+   "type": "exact",
+   "relevant": [
+    "n04"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q005",
+   "q": "멀티스레드",
+   "type": "exact",
+   "relevant": [
+    "n05"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q006",
+   "q": "handshake",
+   "type": "exact",
+   "relevant": [
+    "n06"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q007",
+   "q": "Bad Gateway",
+   "type": "exact",
+   "relevant": [
+    "n07"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q008",
+   "q": "라우터",
+   "type": "exact",
+   "relevant": [
+    "n08"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q009",
+   "q": "이상 현상",
+   "type": "exact",
+   "relevant": [
+    "n09"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q010",
+   "q": "외래 키",
+   "type": "exact",
+   "relevant": [
+    "n10"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q011",
+   "q": "롤백",
+   "type": "exact",
+   "relevant": [
+    "n11"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q012",
+   "q": "심플렉스법",
+   "type": "exact",
+   "relevant": [
+    "n12"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q013",
+   "q": "안전재고",
+   "type": "exact",
+   "relevant": [
+    "n13"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q014",
+   "q": "DMAIC",
+   "type": "exact",
+   "relevant": [
+    "n14"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q015",
+   "q": "결정계수",
+   "type": "exact",
+   "relevant": [
+    "n15"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q016",
+   "q": "유의수준",
+   "type": "exact",
+   "relevant": [
+    "n16"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q017",
+   "q": "리틀의 법칙",
+   "type": "exact",
+   "relevant": [
+    "n17"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q018",
+   "q": "주경로",
+   "type": "exact",
+   "relevant": [
+    "n18"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q019",
+   "q": "Refactor",
+   "type": "exact",
+   "relevant": [
+    "n19"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q020",
+   "q": "merge",
+   "type": "exact",
+   "relevant": [
+    "n20"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q021",
+   "q": "Dockerfile",
+   "type": "exact",
+   "relevant": [
+    "n21"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q022",
+   "q": "GitHub Actions",
+   "type": "exact",
+   "relevant": [
+    "n22"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q023",
+   "q": "카나리 배포",
+   "type": "exact",
+   "relevant": [
+    "n23"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q024",
+   "q": "cProfile",
+   "type": "exact",
+   "relevant": [
+    "n24"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q025",
+   "q": "PEP 8",
+   "type": "exact",
+   "relevant": [
+    "n25"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q026",
+   "q": "운영 체제",
+   "type": "spacing",
+   "relevant": [
+    "n01"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q027",
+   "q": "라운드로빈",
+   "type": "spacing",
+   "relevant": [
+    "n02"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q028",
+   "q": "은행원알고리즘",
+   "type": "spacing",
+   "relevant": [
+    "n03"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q029",
+   "q": "가상메모리",
+   "type": "spacing",
+   "relevant": [
+    "n04"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q030",
+   "q": "페이지폴트",
+   "type": "spacing",
+   "relevant": [
+    "n04"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q031",
+   "q": "멀티 스레드",
+   "type": "spacing",
+   "relevant": [
+    "n05"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q032",
+   "q": "상태코드",
+   "type": "spacing",
+   "relevant": [
+    "n07"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q033",
+   "q": "데이터링크",
+   "type": "spacing",
+   "relevant": [
+    "n08"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q034",
+   "q": "이상현상",
+   "type": "spacing",
+   "relevant": [
+    "n09"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q035",
+   "q": "외래키",
+   "type": "spacing",
+   "relevant": [
+    "n10"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q036",
+   "q": "선형 계획법",
+   "type": "spacing",
+   "relevant": [
+    "n12"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q037",
+   "q": "경제적주문량",
+   "type": "spacing",
+   "relevant": [
+    "n13"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q038",
+   "q": "안전 재고",
+   "type": "spacing",
+   "relevant": [
+    "n13"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q039",
+   "q": "공정능력 지수",
+   "type": "spacing",
+   "relevant": [
+    "n14"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q040",
+   "q": "최소 제곱법",
+   "type": "spacing",
+   "relevant": [
+    "n15"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q041",
+   "q": "귀무 가설",
+   "type": "spacing",
+   "relevant": [
+    "n16"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q042",
+   "q": "대기 행렬",
+   "type": "spacing",
+   "relevant": [
+    "n17"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q043",
+   "q": "블루 그린",
+   "type": "spacing",
+   "relevant": [
+    "n23"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q044",
+   "q": "랜덤포레스트",
+   "type": "spacing",
+   "relevant": [
+    "n27"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q045",
+   "q": "공급 망",
+   "type": "spacing",
+   "relevant": [
+    "n30"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q046",
+   "q": "TCP 신뢰성",
+   "type": "multi",
+   "relevant": [
+    "n06"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q047",
+   "q": "UDP 스트리밍",
+   "type": "multi",
+   "relevant": [
+    "n06"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q048",
+   "q": "정규화 BCNF",
+   "type": "multi",
+   "relevant": [
+    "n09"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q049",
+   "q": "JOIN 테이블",
+   "type": "multi",
+   "relevant": [
+    "n10"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q050",
+   "q": "트랜잭션 커밋",
+   "type": "multi",
+   "relevant": [
+    "n11"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q051",
+   "q": "목적함수 제약조건",
+   "type": "multi",
+   "relevant": [
+    "n12"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q052",
+   "q": "주문비용 재고유지비용",
+   "type": "multi",
+   "relevant": [
+    "n13"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q053",
+   "q": "관리도 공정",
+   "type": "multi",
+   "relevant": [
+    "n14"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q054",
+   "q": "회귀 다중공선성",
+   "type": "multi",
+   "relevant": [
+    "n15"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q055",
+   "q": "1종 오류 2종 오류",
+   "type": "multi",
+   "relevant": [
+    "n16"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q056",
+   "q": "M/M/1 서버",
+   "type": "multi",
+   "relevant": [
+    "n17"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q057",
+   "q": "PERT 여유시간",
+   "type": "multi",
+   "relevant": [
+    "n18"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q058",
+   "q": "테스트 mock",
+   "type": "multi",
+   "relevant": [
+    "n19"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q059",
+   "q": "git 충돌",
+   "type": "multi",
+   "relevant": [
+    "n20"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q060",
+   "q": "이미지 컨테이너 저장소",
+   "type": "multi",
+   "relevant": [
+    "n21"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q061",
+   "q": "push 자동 배포",
+   "type": "multi",
+   "relevant": [
+    "n22"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q062",
+   "q": "헬스 체크 전환",
+   "type": "multi",
+   "relevant": [
+    "n23"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q063",
+   "q": "병목 성능",
+   "type": "multi",
+   "relevant": [
+    "n24"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q064",
+   "q": "들여쓰기 주석",
+   "type": "multi",
+   "relevant": [
+    "n25"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q065",
+   "q": "과적합 교차검증",
+   "type": "multi",
+   "relevant": [
+    "n26"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q066",
+   "q": "엔트로피 가지치기",
+   "type": "multi",
+   "relevant": [
+    "n27"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q067",
+   "q": "강점 위협",
+   "type": "multi",
+   "relevant": [
+    "n28"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q068",
+   "q": "가격 유통",
+   "type": "multi",
+   "relevant": [
+    "n29"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q069",
+   "q": "리드타임 JIT",
+   "type": "multi",
+   "relevant": [
+    "n30"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q070",
+   "q": "커널 시스템 콜",
+   "type": "multi",
+   "relevant": [
+    "n01"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q071",
+   "q": "ㅇㅇㅊㅈ",
+   "type": "choseong",
+   "relevant": [
+    "n01"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q072",
+   "q": "ㅅㅋㅈㄹ",
+   "type": "choseong",
+   "relevant": [
+    "n02"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q073",
+   "q": "ㄱㅊㅅㅌ",
+   "type": "choseong",
+   "relevant": [
+    "n03"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q074",
+   "q": "ㄱㅅㅁㅁㄹ",
+   "type": "choseong",
+   "relevant": [
+    "n04"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q075",
+   "q": "ㅅㄹㄷ",
+   "type": "choseong",
+   "relevant": [
+    "n05"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q076",
+   "q": "ㅈㄱㅎ",
+   "type": "choseong",
+   "relevant": [
+    "n09"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q077",
+   "q": "ㅌㄹㅈㅅ",
+   "type": "choseong",
+   "relevant": [
+    "n11"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q078",
+   "q": "ㅅㅎㄱㅎㅂ",
+   "type": "choseong",
+   "relevant": [
+    "n12"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q079",
+   "q": "ㅈㄱㄱㄹ",
+   "type": "choseong",
+   "relevant": [
+    "n13"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q080",
+   "q": "ㅎㄱㅂㅅ",
+   "type": "choseong",
+   "relevant": [
+    "n15"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q081",
+   "q": "ㄱㅅㄱㅈ",
+   "type": "choseong",
+   "relevant": [
+    "n16"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q082",
+   "q": "ㄷㄱㅎㄹ",
+   "type": "choseong",
+   "relevant": [
+    "n17"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q083",
+   "q": "ㅁㅈㄷㅂㅍ",
+   "type": "choseong",
+   "relevant": [
+    "n23"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q084",
+   "q": "ㅋㄷㅋㅂㅅ",
+   "type": "choseong",
+   "relevant": [
+    "n25"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q085",
+   "q": "ㄱㄱㅁ ㄱㄹ",
+   "type": "choseong",
+   "relevant": [
+    "n30"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q086",
+   "q": "tcp",
+   "type": "case",
+   "relevant": [
+    "n06"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q087",
+   "q": "osi",
+   "type": "case",
+   "relevant": [
+    "n08"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q088",
+   "q": "inner join",
+   "type": "case",
+   "relevant": [
+    "n10"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q089",
+   "q": "acid",
+   "type": "case",
+   "relevant": [
+    "n11"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q090",
+   "q": "eoq",
+   "type": "case",
+   "relevant": [
+    "n13"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q091",
+   "q": "cpk",
+   "type": "case",
+   "relevant": [
+    "n14"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q092",
+   "q": "p값",
+   "type": "case",
+   "relevant": [
+    "n16"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q093",
+   "q": "tdd",
+   "type": "case",
+   "relevant": [
+    "n19"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q094",
+   "q": "GIT PUSH",
+   "type": "case",
+   "relevant": [
+    "n20"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q095",
+   "q": "docker hub",
+   "type": "case",
+   "relevant": [
+    "n21"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q096",
+   "q": "ci/cd",
+   "type": "case",
+   "relevant": [
+    "n22"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q097",
+   "q": "blue-green",
+   "type": "case",
+   "relevant": [
+    "n23"
+   ],
+   "split": "tune"
+  },
+  {
+   "id": "q098",
+   "q": "swot",
+   "type": "case",
+   "relevant": [
+    "n28"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q099",
+   "q": "5 forces",
+   "type": "case",
+   "relevant": [
+    "n28"
+   ],
+   "split": "test"
+  },
+  {
+   "id": "q100",
+   "q": "vmi",
+   "type": "case",
+   "relevant": [
+    "n30"
+   ],
+   "split": "test"
+  }
+ ]
+}

@@ -239,14 +239,74 @@ export function linkedItems(state, id) {
   return result;
 }
 
-// ---------- 검색 ----------
+// ---------- 검색 (v0.3.0) ----------
+// v0.2.0은 입력한 글자가 그대로 들어 있어야만 찾았다. v0.3.0은
+//  1) 띄어쓰기·기호·대소문자를 무시하고 ("가상메모리" = "가상 메모리", "p값" = "p-값")
+//  2) 여러 단어는 떨어져 있어도 모두 들어 있으면 찾고 ("push 배포")
+//  3) 한글 초성으로도 찾고 ("ㅂㄹㅊ" = "브랜치")
+//  4) 제목에서 찾은 노트를 앞에 놓는다 (Enter를 누르면 맨 앞 노트가 열린다).
+
+// 초성 표. 비교는 모두 NFKC로 정규화한 글자로 한다 (호환 자모 ㄱ과 조합용 자모 ᄀ을 같게 본다).
+const CHOSEONG = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ']
+  .map((c) => c.normalize('NFKC'));
+const CHOSEONG_SET = new Set(CHOSEONG);
+
+// 비교용 글자만 남긴다: 정규화(NFKC), 소문자, 글자·숫자 말고는 모두 지운다.
+export function compactText(text) {
+  return String(text ?? '').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+}
+
+// 한글 음절을 초성으로 바꾼다. 한글이 아닌 글자는 그대로 둔다.
+export function toChoseong(compact) {
+  let out = '';
+  for (const ch of compact) {
+    const code = ch.charCodeAt(0);
+    out += code >= 0xac00 && code <= 0xd7a3 ? CHOSEONG[Math.floor((code - 0xac00) / 588)] : ch;
+  }
+  return out;
+}
+
+function isChoseongOnly(token) {
+  return [...token].every((ch) => CHOSEONG_SET.has(ch));
+}
+
+const TITLE_SCORE = 3;
+const BODY_SCORE = 1;
 
 export function searchNotes(state, query) {
-  const q = query.trim().toLowerCase();
-  if (!q) return [];
-  return state.notes
-    .filter((n) => n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q))
-    .map((n) => n.id);
+  const tokens = String(query ?? '').split(/\s+/).map(compactText).filter(Boolean);
+  if (!tokens.length) return [];
+  const whole = tokens.join('');
+
+  const found = [];
+  state.notes.forEach((note, order) => {
+    const title = compactText(note.title);
+    const body = compactText(note.body);
+    let titleCho = null;
+    let bodyCho = null;
+    let score = 0;
+    for (const token of tokens) {
+      let inTitle;
+      let inBody;
+      if (isChoseongOnly(token)) {
+        titleCho ??= toChoseong(title);
+        bodyCho ??= toChoseong(body);
+        inTitle = titleCho.includes(token);
+        inBody = bodyCho.includes(token);
+      } else {
+        inTitle = title.includes(token);
+        inBody = body.includes(token);
+      }
+      if (!inTitle && !inBody) return; // 모든 단어가 들어 있어야 한다
+      score += inTitle ? TITLE_SCORE : BODY_SCORE;
+    }
+    if (tokens.length > 1 && (title.includes(whole) || body.includes(whole))) score += 2; // 붙어 있으면 가산점
+    if (title.startsWith(whole)) score += 1;
+    found.push({ id: note.id, score, order });
+  });
+
+  found.sort((a, b) => b.score - a.score || a.order - b.order);
+  return found.map((f) => f.id);
 }
 
 // ---------- 그리기용 계산 ----------

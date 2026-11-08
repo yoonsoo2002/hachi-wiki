@@ -17,7 +17,7 @@ const el = {
   labelLayer: $('labelLayer'), cardLayer: $('cardLayer'),
   zoomText: $('zoomText'), edgeTools: $('edgeTools'), edgeLabel: $('edgeLabel'),
   edgeKind: $('edgeKind'), edgeFlip: $('edgeFlip'), edgeDelete: $('edgeDelete'),
-  bubble: $('bubble'), search: $('search'),
+  bubble: $('bubble'), search: $('search'), searchCount: $('searchCount'),
   editorEmpty: $('editorEmpty'), editorBody: $('editorBody'), noteTitle: $('noteTitle'),
   noteBody: $('noteBody'), notePreview: $('notePreview'), saveStateText: $('saveState'),
   viewEdit: $('viewEdit'), viewPreview: $('viewPreview'),
@@ -689,9 +689,21 @@ function setEdgeMode(mode) {
 el.modeLine.addEventListener('click', () => setEdgeMode('line'));
 el.modeArrow.addEventListener('click', () => setEdgeMode('arrow'));
 
+// 검색 결과 개수 표시 (v0.3.0)
+function showSearchCount() {
+  if (!searchIds) {
+    el.searchCount.hidden = true;
+    return;
+  }
+  el.searchCount.hidden = false;
+  el.searchCount.classList.toggle('none', searchIds.length === 0);
+  el.searchCount.textContent = searchIds.length ? `${searchIds.length}개 · Enter` : '결과 없음';
+}
+
 el.search.addEventListener('input', () => {
   const q = el.search.value;
   searchIds = q.trim() ? searchNotes(state, q) : null;
+  showSearchCount();
   renderCards();
 });
 el.search.addEventListener('keydown', (ev) => {
@@ -702,6 +714,7 @@ el.search.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape') {
     el.search.value = '';
     searchIds = null;
+    showSearchCount();
     renderCards();
   }
 });

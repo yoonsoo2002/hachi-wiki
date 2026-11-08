@@ -77,12 +77,20 @@ button, input, textarea { font: inherit; color: inherit; }
 }
 .brand { display: flex; align-items: center; gap: 8px; }
 .brand-name { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
-.search { flex: 1; max-width: 360px; }
+.search { flex: 1; max-width: 360px; position: relative; }
 .search input {
   width: 100%; border: 1px solid var(--line); border-radius: 999px;
   padding: 8px 14px; background: var(--cream); outline: none;
 }
 .search input:focus { border-color: var(--blue); background: var(--white); }
+/* 검색 결과 개수 (v0.3.0) */
+.search-count {
+  position: absolute; right: 34px; top: 50%; transform: translateY(-50%);
+  font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+  background: var(--blue-soft); color: var(--blue); pointer-events: none; white-space: nowrap;
+}
+.search-count.none { background: var(--pink-soft); color: var(--danger); }
+.search:has(.search-count:not([hidden])) input { padding-right: 104px; }
 .actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .menu { position: relative; }
 .menu-pop {
