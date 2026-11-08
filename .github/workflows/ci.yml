@@ -1,19 +1,73 @@
 name: CI
 
+# push하면 자동으로 테스트 → Docker 이미지 빌드 → Docker Hub 업로드.
+# Pull Request에서는 테스트와 빌드 확인만 하고, 업로드는 main에 push했을 때만 한다.
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   test:
+    name: Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 22
-      - name: 자동 테스트
+          node-version: 22.23.3
+      - name: Run tests
         run: npm test
-      - name: 버전 파일 생성 확인
+      - name: Check version file
         run: node scripts/write-version.mjs
+
+  docker:
+    name: Build and push Docker image
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+          # Pull Request(특히 남의 저장소에서 온 것)는 Secrets를 못 읽으므로 이름이 비지 않게 'pr'을 쓴다.
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME || 'pr' }}/hachi-wiki:latest
+            ${{ secrets.DOCKERHUB_USERNAME || 'pr' }}/hachi-wiki:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        if: github.event_name != 'pull_request'
+        run: |
+          {
+            echo "### Docker image pushed"
+            echo ""
+            echo "| Item | Value |"
+            echo "|---|---|"
+            echo "| Image | \`hachi-wiki:${GITHUB_SHA::7}\` and \`hachi-wiki:latest\` on Docker Hub |"
+            echo "| Commit | \`${GITHUB_SHA::7}\` |"
+            echo "| Version | \`$(node -p "require('./package.json').version")\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
