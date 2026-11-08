@@ -34,6 +34,42 @@
 - `npm run build`: 테스트를 통과하면 `public/version.json`을 만든다. Vercel이 이 명령으로 빌드한다.
 - `/api/health`: Vercel 서버 함수. 서버 상태와 배포된 커밋을 돌려준다.
 
+## Docker CI/CD (HW3)
+
+> 오픈소스SW개발방법및도구 HW3 (From Development to Deployment 2). Vercel 배포는 그대로 두고, 같은 코드를 Docker 이미지로 만들어 내 PC에 자동·무중단 배포한다.
+
+```
+git push (main)
+  └→ GitHub Actions "CI" (ubuntu)
+       ├─ Test: npm test
+       └─ Build and push Docker image → Docker Hub  <user>/hachi-wiki:latest, :<commit>
+            └→ GitHub Actions "Deploy" (Self-hosted Runner = 내 Windows PC)
+                 ├─ Start availability monitor  (배포 전 정상 응답 확인, 1초 간격 실제 화면 요청)
+                 ├─ Pull latest image
+                 ├─ Replace running app container  (blue-green: 새 컨테이너 healthy → nginx 전환 → 옛 컨테이너 종료)
+                 ├─ Keep monitoring for 30 seconds after deployment
+                 └─ Write verification summary + Upload verification logs (Artifacts)
+
+브라우저 → http://localhost:8080 → hachi-proxy (nginx) → hachi-blue 또는 hachi-green (node server.mjs :3000)
+```
+
+| 파일 | 역할 |
+|---|---|
+| `Dockerfile` | `node:22.23.3-alpine3.24` 고정. 빌드 중 `npm test`(서버 응답 테스트 포함)를 통과해야 이미지가 만들어진다. |
+| `server.mjs` | 컨테이너 안 서버. `public/` 화면과 `/api/health`를 서비스하고, 모든 응답에 `X-App-Version`, `X-App-Commit`, `X-Served-By` 헤더를 붙인다. |
+| `.github/workflows/ci.yml` | 테스트 → 이미지 빌드 → Docker Hub 업로드 (`DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` Secrets 사용). PR에서는 업로드하지 않는다. |
+| `.github/workflows/deploy.yml` | CI가 main push에서 성공하면 Self-hosted Runner에서 무중단 배포와 검증을 한다. PR로는 실행되지 않는다. |
+| `deploy/deploy.ps1` | blue-green 교체. 새 컨테이너가 healthy가 아니거나 커밋이 다르면 전환하지 않고 기존 컨테이너가 계속 서비스한다. |
+| `deploy/monitor.ps1` | 응답을 받으면 1초 쉬고 다음 요청. 요청마다 시각·응답 시간·HTTP 상태·화면 정상 여부·배포 버전을 기록한다. |
+| `deploy/summary.ps1` | 배포 전·중·후 결과, 버전 전환, 실제 요청 간격, 가장 긴 공백을 Actions Summary에 정리한다. |
+
+로컬에서 이미지만 시험할 때:
+
+```bash
+docker build --build-arg GIT_SHA=$(git rev-parse HEAD) -t hachi-wiki:dev .
+docker run --rm -p 8080:3000 hachi-wiki:dev
+```
+
 ## 로컬 실행
 
 Node.js 20 이상과 Python 3이 필요하다.
@@ -59,10 +95,13 @@ public/            화면 파일 (Vercel이 그대로 배포)
     hachi.js       하치와레 말풍선 문구
     seed.js        첫 접속 예시 노트
     store.js       IndexedDB 저장
-api/health.js      서버 상태 확인 함수
+api/health.js      서버 상태 확인 함수 (Vercel)
+server.mjs         Docker 컨테이너용 서버 (HW3)
+Dockerfile         Docker 이미지 설계도 (HW3)
+deploy/            무중단 배포·검증 스크립트 (HW3, Windows Self-hosted Runner)
 tests/             자동 테스트
 scripts/           빌드 스크립트 (버전 파일 생성)
-.github/workflows/ GitHub Actions 설정
+.github/workflows/ GitHub Actions 설정 (ci.yml, deploy.yml)
 vercel.json        Vercel 빌드 설정
 ```
 

@@ -4,3 +4,10 @@ node_modules/
 .claude/
 # 빌드할 때 만들어지는 파일
 public/version.json
+# 배포 검증 중에 만들어지는 로그 (GitHub Actions Artifacts로 따로 보관)
+deploy-logs/
+# Self-hosted Runner 설치·실행 파일 (러너는 저장소 밖 C:\actions-runner에 두지만, 실수로 안에 풀어도 올라가지 않게)
+actions-runner/
+_work/
+_diag/
+*.log

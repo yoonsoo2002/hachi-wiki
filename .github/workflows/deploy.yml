@@ -1,0 +1,127 @@
+name: Deploy
+
+# CI가 main push에서 성공하면(= Docker Hub에 새 이미지가 올라가면) 내 PC의 Self-hosted Runner가
+# 그 이미지를 받아 무중단(blue-green)으로 교체하고, 배포 전·중·후 서비스 응답을 기록한다.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 배포는 한 번에 하나씩만 (앞 배포가 끝나야 다음 배포가 시작된다).
+concurrency:
+  group: deploy-local-windows
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to local Windows runner
+    # 공개 저장소라 Pull Request로는 절대 내 PC에서 실행되지 않게 막는다 (main push로 성공한 CI만).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File {0}
+    env:
+      COMMIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      IMAGE_REPO: ${{ secrets.DOCKERHUB_USERNAME }}/hachi-wiki
+      SERVICE_URL: http://127.0.0.1:8080/
+      LOG_DIR: ${{ github.workspace }}\deploy-logs
+
+    steps:
+      - name: Check out deploy scripts
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.COMMIT_SHA }}
+
+      # Docker Desktop은 사용자별 설치(AppData\Local\Programs)와 전체 설치(Program Files) 두 위치가 있다.
+      - name: Add per-user Docker Desktop CLI to PATH
+        run: |
+          if (Get-Command docker -ErrorAction SilentlyContinue) { Write-Host "docker found: $((Get-Command docker).Source)"; exit 0 }
+          $candidates = @(
+            (Join-Path $env:LOCALAPPDATA 'Programs\DockerDesktop\resources\bin'),
+            (Join-Path $env:ProgramFiles 'Docker\Docker\resources\bin')
+          )
+          $bin = $candidates | Where-Object { Test-Path (Join-Path $_ 'docker.exe') } | Select-Object -First 1
+          if (-not $bin) { Write-Host '::error::Docker CLI not found. Install Docker Desktop.'; exit 1 }
+          Add-Content -Path $env:GITHUB_PATH -Value $bin
+          Write-Host "Added $bin to PATH"
+
+      - name: Verify Docker is installed and the engine is running
+        run: |
+          docker version --format 'Client {{.Client.Version}} / Server {{.Server.Version}}'
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::Docker engine is not running. Start Docker Desktop and re-run this job.'; exit 1 }
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Start availability monitor
+        run: |
+          if (Test-Path $env:LOG_DIR) { Remove-Item -Recurse -Force $env:LOG_DIR }
+          New-Item -ItemType Directory -Force $env:LOG_DIR | Out-Null
+          Set-Content -Path (Join-Path $env:LOG_DIR 'phase.txt') -Value 'before' -Encoding Ascii
+          $script = (Resolve-Path '.\deploy\monitor.ps1').Path
+          # 경로에 띄어쓰기가 있어도 잘리지 않게 따옴표로 감싼 한 줄로 넘긴다.
+          $argLine = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$script`" -Url `"$($env:SERVICE_URL)`" -LogDir `"$($env:LOG_DIR)`""
+          $p = Start-Process -FilePath powershell.exe -ArgumentList $argLine -WindowStyle Hidden -PassThru
+          Set-Content -Path (Join-Path $env:LOG_DIR 'monitor.pid') -Value $p.Id -Encoding Ascii
+          Write-Host "Monitor started (pid $($p.Id)). Confirming the current service responds before redeploying..."
+          # 배포 전에 지금 서비스가 정상 응답하는지 먼저 확인한다 (성공 응답 3건).
+          $csv = Join-Path $env:LOG_DIR 'requests.csv'
+          $deadline = (Get-Date).AddSeconds(20)
+          $ok = 0
+          while ((Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds 1
+            if (Test-Path $csv) { $ok = @(Import-Csv $csv | Where-Object { $_.http -eq '200' -and $_.valid -eq 'true' }).Count }
+            if ($ok -ge 3) { break }
+          }
+          if ($ok -ge 3) { Write-Host "Baseline confirmed: $ok successful responses before deployment." }
+          else { Write-Host "::notice::No running service answered before deployment. Treating this run as the initial deployment." }
+
+      - name: Pull latest image
+        run: |
+          Set-Content -Path (Join-Path $env:LOG_DIR 'phase.txt') -Value 'during' -Encoding Ascii
+          docker pull "$($env:IMAGE_REPO):$($env:COMMIT_SHA)"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Replace running app container
+        run: |
+          & .\deploy\deploy.ps1 -Image "$($env:IMAGE_REPO):$($env:COMMIT_SHA)" -ExpectedCommit ($env:COMMIT_SHA.Substring(0, 7)) -LogDir $env:LOG_DIR
+          exit $LASTEXITCODE
+
+      - name: Keep monitoring for 30 seconds after deployment
+        run: |
+          Set-Content -Path (Join-Path $env:LOG_DIR 'phase.txt') -Value 'after' -Encoding Ascii
+          Start-Sleep -Seconds 30
+
+      - name: Write verification summary
+        if: always()
+        run: |
+          if (-not (Test-Path $env:LOG_DIR)) { Write-Host 'No logs to summarize.'; exit 0 }
+          Set-Content -Path (Join-Path $env:LOG_DIR 'stop.flag') -Value 'stop' -Encoding Ascii
+          $pidFile = Join-Path $env:LOG_DIR 'monitor.pid'
+          if (Test-Path $pidFile) {
+            $monitorPid = [int](Get-Content $pidFile)
+            Wait-Process -Id $monitorPid -Timeout 15 -ErrorAction SilentlyContinue
+            Stop-Process -Id $monitorPid -Force -ErrorAction SilentlyContinue
+          }
+          & .\deploy\summary.ps1 -LogDir $env:LOG_DIR -Url $env:SERVICE_URL
+          exit $LASTEXITCODE
+
+      - name: Upload verification logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-verification-${{ github.run_number }}
+          path: deploy-logs/
+          if-no-files-found: ignore
